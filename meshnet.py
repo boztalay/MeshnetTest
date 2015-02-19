@@ -12,17 +12,21 @@ BORDER_MARGIN = 5
 
 TARGET_FRAME_TIME = 20
 
+CLICK_RADIUS = 9
+
 # Keeping track of an ugly global state
 
 STATE_IDLE = 0
-STATE_PLACING = 1
-STATE_MOVING = 2
+STATE_MOVING = 1
+STATE_CONNECTING = 2
 state = STATE_IDLE
 
 # Some ugly globals
 
-nodes = []
 timeMgr = timeManager.TimeManager()
+
+nodes = []
+nodeBeingMoved = None
 
 # Set up the window and put a canvas in it
 
@@ -59,13 +63,73 @@ def updateAndDrawAll():
 
 def mouseClicked(event):
     global state
+    global nodes
 
     clickPoint = Point(event.x, event.y)
     clampPointToBounds(clickPoint, WINDOW_WIDTH, WINDOW_HEIGHT, BORDER_MARGIN)
 
     if state is STATE_IDLE:
-        newNode = Node(clickPoint)
-        nodes.append(newNode)
+        nearbyNode = getNearbyNode(clickPoint)
+
+        if nearbyNode is None:
+            placeNewNode(clickPoint)
+        else:
+            startMovingNode(nearbyNode)
+    elif state is STATE_MOVING:
+        stopMovingNode()
+
+def mouseMoved(event):
+    global state
+    global nodes
+
+    mousePos = Point(event.x, event.y)
+    clampPointToBounds(mousePos, WINDOW_WIDTH, WINDOW_HEIGHT, BORDER_MARGIN)
+
+    if state is STATE_MOVING:
+        nodeBeingMoved.location.setToPoint(mousePos)
+
+# Placing new nodes
+
+def placeNewNode(clickPoint):
+    global nodes
+
+    newNode = Node(clickPoint)
+    nodes.append(newNode)
+
+# Moving nodes
+
+def startMovingNode(node):
+    global state
+    global nodeBeingMoved
+
+    nodeBeingMoved = node
+    state = STATE_MOVING
+
+def stopMovingNode():
+    global state
+    global nodeBeingMoved
+
+    nodeBeingMoved = None
+    state = STATE_IDLE
+
+# A helper function to get a nearby node to move or add a connection to
+
+def getNearbyNode(clickPoint):
+    global nodes
+
+    closestNode = None
+    closestDistance = None
+
+    for node in nodes:
+        distance = node.location.distanceTo(clickPoint)
+        if closestDistance is None or distance < closestDistance:
+            closestNode = node
+            closestDistance = distance
+
+    if closestDistance is not None and closestDistance < CLICK_RADIUS:
+        return closestNode
+    else:
+        return None
 
 # Clearing the screen and quitting
 
@@ -81,6 +145,7 @@ def quit(event):
 # Bind some I/O
 
 master.bind("<Button-1>", mouseClicked)
+master.bind("<Motion>", mouseMoved)
 master.bind("c", clear)
 master.bind("q", quit)
 

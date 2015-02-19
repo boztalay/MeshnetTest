@@ -7,7 +7,7 @@ class Point():
         self.x = x
         self.y = y
 
-    def set(self, otherPoint):
+    def setToPoint(self, otherPoint):
         self.x = otherPoint.x
         self.y = otherPoint.y
 
