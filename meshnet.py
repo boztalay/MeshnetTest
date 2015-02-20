@@ -43,16 +43,21 @@ def updateAndDrawAll():
 
     timeMgr.startFrameTimer()
 
+    # Update
     timeMgr.startTimer("update")
     for node in nodes:
         node.update()
     timeMgr.stopTimer("update")
 
+    # Draw
     timeMgr.startTimer("draw")
     canvas.delete("all")
     canvas.create_rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, fill="black")
+
     for node in nodes:
         node.draw(canvas)
+
+    timeMgr.draw(canvas)
     timeMgr.stopTimer("draw")
 
     # Continue the loop by starting another timer
@@ -151,5 +156,5 @@ master.bind("q", quit)
 
 # Start rendering things
 
-master.after(timeManager.TARGET_FRAME_TIME_MS, updateAndDrawAll)
+updateAndDrawAll()
 mainloop()
