@@ -16,9 +16,10 @@ CLICK_RADIUS = 9
 
 # Keeping track of an ugly global state
 
-STATE_IDLE = 0
-STATE_MOVING = 1
-STATE_CONNECTING = 2
+STATE_IDLE = "Idle"
+STATE_MOVING = "Moving"
+STATE_CONNECTING_START = "Connecting start"
+STATE_CONNECTING_FINISH = "Connecting finish"
 state = STATE_IDLE
 
 # Some ugly globals
@@ -27,6 +28,7 @@ timeMgr = timeManager.TimeManager()
 
 nodes = []
 nodeBeingMoved = None
+newConnectionSourceNode = None
 
 # Set up the window and put a canvas in it
 
@@ -39,7 +41,8 @@ canvas.pack()
 
 def updateAndDrawAll():
     global canvas
-    global bezierCurves
+    global nodes
+    global timeMgr
 
     timeMgr.startFrameTimer()
 
@@ -51,18 +54,29 @@ def updateAndDrawAll():
 
     # Draw
     timeMgr.startTimer("draw")
+
     canvas.delete("all")
     canvas.create_rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, fill="black")
 
     for node in nodes:
         node.draw(canvas)
 
-    timeMgr.draw(canvas)
+    drawInfo(canvas)
+
     timeMgr.stopTimer("draw")
 
     # Continue the loop by starting another timer
     millisToNextFrame = timeMgr.stopFrameTimer()
     master.after(millisToNextFrame, updateAndDrawAll)
+
+def drawInfo(canvas):
+    global state
+    global timeMgr
+
+    timeMgr.draw(canvas)
+
+    # Draw the current state
+    canvas.create_text(WINDOW_WIDTH - BORDER_MARGIN, 2, text=state, anchor=NE, fill="white")
 
 # Handling mouse input
 
@@ -72,16 +86,21 @@ def mouseClicked(event):
 
     clickPoint = Point(event.x, event.y)
     clampPointToBounds(clickPoint, WINDOW_WIDTH, WINDOW_HEIGHT, BORDER_MARGIN)
+    nearbyNode = getNearbyNode(clickPoint)
 
     if state is STATE_IDLE:
-        nearbyNode = getNearbyNode(clickPoint)
-
         if nearbyNode is None:
             placeNewNode(clickPoint)
         else:
             startMovingNode(nearbyNode)
     elif state is STATE_MOVING:
         stopMovingNode()
+    elif state is STATE_CONNECTING_START:
+        if nearbyNode is not None:
+            startConnection(nearbyNode)
+    elif state is STATE_CONNECTING_FINISH:
+        if nearbyNode is not None:
+            finishConnection(nearbyNode)
 
 def mouseMoved(event):
     global state
@@ -117,6 +136,41 @@ def stopMovingNode():
     nodeBeingMoved = None
     state = STATE_IDLE
 
+# Connecting nodes
+
+def toggleConnecting(event):
+    global state
+    global newConnectionSourceNode
+
+    if state is STATE_IDLE:
+        state = STATE_CONNECTING_START
+    elif state is STATE_CONNECTING_START:
+        state = STATE_IDLE
+    elif state is STATE_CONNECTING_FINISH:
+        state = STATE_IDLE
+        newConnectionSourceNode = None
+
+def startConnection(sourceNode):
+    global state
+    global newConnectionSourceNode
+
+    newConnectionSourceNode = sourceNode
+    newConnectionSourceNode.setPendingConnection()
+    state = STATE_CONNECTING_FINISH
+
+def finishConnection(destNode):
+    global state
+    global newConnectionSourceNode
+
+    try:
+        newConnectionSourceNode.connectTo(destNode)
+        destNode.connectTo(newConnectionSourceNode)
+    except NodeError:
+        pass
+    finally:
+        newConnectionSourceNode = None
+        state = STATE_IDLE
+
 # A helper function to get a nearby node to move or add a connection to
 
 def getNearbyNode(clickPoint):
@@ -138,7 +192,7 @@ def getNearbyNode(clickPoint):
 
 # Clearing the screen and quitting
 
-def clear(event):
+def reset(event):
     global nodes
 
     if state is STATE_IDLE:
@@ -151,7 +205,8 @@ def quit(event):
 
 master.bind("<Button-1>", mouseClicked)
 master.bind("<Motion>", mouseMoved)
-master.bind("c", clear)
+master.bind("c", toggleConnecting)
+master.bind("r", reset)
 master.bind("q", quit)
 
 # Start rendering things

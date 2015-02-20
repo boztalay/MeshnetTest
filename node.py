@@ -4,21 +4,34 @@ from basics import *
 
 NODE_RADIUS = 5
 NODE_COLOR = "green"
+NODE_PENDING_COLOR = "purple"
 CONNECTION_COLOR = "yellow"
+
+class NodeError(Exception):
+    pass
 
 class Node:
     def __init__(self, location):
         self.location = location
         self.connections = []
         self.packetBuffer = []
+        self.isPendingConnection = False
 
     def addPacketToBuffer(self, packet):
         self.packetBuffer.append(packet)
 
+    def setPendingConnection(self):
+        self.isPendingConnection = True
+
     def connectTo(self, destNode):
+        self.isPendingConnection = False
+
+        if destNode is self:
+            raise NodeError("Tried to connect a node to itself")
+
         for connection in self.connections:
             if connection.destNode is destNode:
-                raise RuntimeError("Tried to connect to a node that already has a connection")
+                raise NodeError("Tried to connect to a node that already has a connection")
 
         self.connections.append(Connection(self, destNode))
 
@@ -28,14 +41,22 @@ class Node:
                 self.connections.remove(connection)
                 return
 
-        raise RuntimeError("Tried to disconnect from a node that doesn't have a connection")
+        raise NodeError("Tried to disconnect from a node that doesn't have a connection")
 
     def update(self):
-        pass
+        for connection in self.connections:
+            connection.update()
 
     def draw(self, canvas):
+        for connection in self.connections:
+            connection.draw(canvas)
+
+        nodeColor = NODE_COLOR
+        if self.isPendingConnection:
+            nodeColor = NODE_PENDING_COLOR
+
         canvas.create_rectangle(self.location.x - NODE_RADIUS, self.location.y - NODE_RADIUS,
-                                self.location.x + NODE_RADIUS, self.location.y + NODE_RADIUS, outline = NODE_COLOR)
+                                self.location.x + NODE_RADIUS, self.location.y + NODE_RADIUS, outline=nodeColor)
 
 class Connection:
     def __init__(self, sourceNode, destNode):
