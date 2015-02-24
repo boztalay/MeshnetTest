@@ -20,6 +20,8 @@ STATE_IDLE = "Idle"
 STATE_MOVING = "Moving"
 STATE_CONNECTING_START = "Connecting start"
 STATE_CONNECTING_FINISH = "Connecting finish"
+STATE_PACKET_START = "Packet start"
+STATE_PACKET_FINISH = "Packet finish"
 state = STATE_IDLE
 
 # Some ugly globals
@@ -29,6 +31,7 @@ timeMgr = timeManager.TimeManager()
 nodes = []
 nodeBeingMoved = None
 newConnectionSourceNode = None
+newPacketSourceNode = None
 
 # Set up the window and put a canvas in it
 
@@ -101,6 +104,12 @@ def mouseClicked(event):
     elif state is STATE_CONNECTING_FINISH:
         if nearbyNode is not None:
             finishConnection(nearbyNode)
+    elif state is STATE_PACKET_START:
+        if nearbyNode is not None:
+            startPacket(nearbyNode)
+    elif state is STATE_PACKET_FINISH:
+        if nearbyNode is not None:
+            finishPacket(nearbyNode)
 
 def mouseMoved(event):
     global state
@@ -155,7 +164,7 @@ def startConnection(sourceNode):
     global newConnectionSourceNode
 
     newConnectionSourceNode = sourceNode
-    newConnectionSourceNode.setPendingConnection()
+    newConnectionSourceNode.setPendingAction()
     state = STATE_CONNECTING_FINISH
 
 def finishConnection(destNode):
@@ -170,6 +179,39 @@ def finishConnection(destNode):
     finally:
         newConnectionSourceNode = None
         state = STATE_IDLE
+
+# Making and routing packets
+
+def togglePacketRouting(event):
+    global state
+    global newPacketSourceNode
+
+    if state is STATE_IDLE:
+        state = STATE_PACKET_START
+    elif state is STATE_PACKET_START:
+        state = STATE_IDLE
+    elif state is STATE_PACKET_FINISH:
+        state = STATE_IDLE
+        newConnectionSourceNode = None
+
+def startPacket(sourceNode):
+    global state
+    global newPacketSourceNode
+
+    newPacketSourceNode = sourceNode
+    newPacketSourceNode.setPendingAction()
+    state = STATE_PACKET_FINISH
+
+def finishPacket(destNode):
+    global state
+    global newPacketSourceNode
+
+    packet = Packet(newPacketSourceNode, destNode, "Hello, world!")
+    newPacketSourceNode.addPacketToBuffer(packet)
+    newPacketSourceNode.clearPendingAction()
+
+    newConnectionSourceNode = None
+    state = STATE_IDLE
 
 # A helper function to get a nearby node to move or add a connection to
 
@@ -206,6 +248,7 @@ def quit(event):
 master.bind("<Button-1>", mouseClicked)
 master.bind("<Motion>", mouseMoved)
 master.bind("c", toggleConnecting)
+master.bind("p", togglePacketRouting)
 master.bind("r", reset)
 master.bind("q", quit)
 

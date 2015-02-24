@@ -15,16 +15,19 @@ class Node:
         self.location = location
         self.connections = []
         self.packetBuffer = []
-        self.isPendingConnection = False
+        self.isPendingAction = False
 
     def addPacketToBuffer(self, packet):
         self.packetBuffer.append(packet)
 
-    def setPendingConnection(self):
-        self.isPendingConnection = True
+    def setPendingAction(self):
+        self.isPendingAction = True
+
+    def clearPendingAction(self):
+        self.isPendingAction = False
 
     def connectTo(self, destNode):
-        self.isPendingConnection = False
+        self.clearPendingAction()
 
         if destNode is self:
             raise NodeError("Tried to connect a node to itself")
@@ -52,7 +55,7 @@ class Node:
             connection.draw(canvas)
 
         nodeColor = NODE_COLOR
-        if self.isPendingConnection:
+        if self.isPendingAction:
             nodeColor = NODE_PENDING_COLOR
 
         canvas.create_rectangle(self.location.x - NODE_RADIUS, self.location.y - NODE_RADIUS,
@@ -72,3 +75,9 @@ class Connection:
     def draw(self, canvas):
         canvas.create_line(self.sourceNode.location.x, self.sourceNode.location.y,
                            self.destNode.location.x, self.destNode.location.y, fill = CONNECTION_COLOR)
+
+class Packet:
+    def __init__(self, sourceNode, destNode, message):
+        self.sourceNode = sourceNode
+        self.destNode = destNode
+        self.message = message
