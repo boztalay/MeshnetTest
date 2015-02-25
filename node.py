@@ -15,6 +15,7 @@ class Node:
         self.location = location
         self.connections = []
         self.packetBuffer = []
+        self.connectionsTriedForPackets = {}
         self.isPendingAction = False
 
     def addPacketToBuffer(self, packet):
@@ -47,8 +48,33 @@ class Node:
         raise NodeError("Tried to disconnect from a node that doesn't have a connection")
 
     def update(self):
+        unsendablePackets = []
+
         for packet in self.packetBuffer:
-            pass
+            if packet.destNode is self:
+                self.receivePacket(packet)
+                continue
+
+            sortedConnectionsForPacket = sorted(self.connections, key=lambda connection: connection.destNode.distanceTo(packet.destNode))
+
+            if packet not in self.connectionsTriedForPackets:
+                connectionsTriedForPacket = []
+                self.connectionsTriedForPackets[packet] = connectionsTriedForPacket
+            else:
+                connectionsTriedForPacket = self.connectionsTriedForPackets[packet]
+
+            couldSend = False
+            for connection in sortedConnectionsForPacket:
+                if connection not in connectionsTriedForPacket:
+                    connection.sendPacket(packet)
+                    connectionsTriedForPacket.append(connection)
+                    couldSend = True
+                    break
+
+            if not couldSend:
+                unsendablePackets.append(packet)
+
+        self.packetBuffer = unsendablePackets
 
     def updateConnections(self):
         for connection in self.connections:
@@ -70,6 +96,11 @@ class Node:
             canvas.create_rectangle(self.location.x - (NODE_RADIUS - 2), self.location.y - (NODE_RADIUS - 2),
                                     self.location.x + (NODE_RADIUS - 2), self.location.y + (NODE_RADIUS - 2), fill=innerColor)
 
+    def receivePacket(self, packet):
+        pass
+
+    def distanceTo(self, otherNode):
+        return self.location.distanceTo(otherNode.location)
 
 class Connection:
     def __init__(self, sourceNode, destNode):
@@ -81,8 +112,8 @@ class Connection:
         self.packetsToSend.append(packet)
 
     def update(self):
-        for packet in self.packetsToSend:
-            self.destNode.addPacketToBuffer(packet)
+        while len(self.packetsToSend) > 0:
+            self.destNode.addPacketToBuffer(self.packetsToSend.pop())
 
     def draw(self, canvas):
         canvas.create_line(self.sourceNode.location.x, self.sourceNode.location.y,
