@@ -1,4 +1,5 @@
 from Tkinter import *
+import random
 
 from basics import *
 from node import *
@@ -10,7 +11,6 @@ WINDOW_WIDTH = 1000
 WINDOW_HEIGHT = 600
 BORDER_MARGIN = 5
 
-TARGET_FRAME_TIME = 20
 TARGET_UPDATE_INTERVAL = 500
 
 CLICK_RADIUS = 9
@@ -148,6 +148,23 @@ def mouseMoved(event):
     if state is STATE_MOVING:
         nodeBeingMoved.location.setToPoint(mousePos)
 
+def getNearbyNode(clickPoint):
+    global nodes
+
+    closestNode = None
+    closestDistance = None
+
+    for node in nodes:
+        distance = node.location.distanceTo(clickPoint)
+        if closestDistance is None or distance < closestDistance:
+            closestNode = node
+            closestDistance = distance
+
+    if closestDistance is not None and closestDistance < CLICK_RADIUS:
+        return closestNode
+    else:
+        return None
+
 # Placing new nodes
 
 def placeNewNode(clickPoint):
@@ -242,24 +259,39 @@ def finishPacket(destNode):
     newConnectionSourceNode = None
     state = STATE_IDLE
 
-# A helper function to get a nearby node to move or add a connection to
+# Generating a random network
 
-def getNearbyNode(clickPoint):
+def autogenerateNetwork(event):
     global nodes
 
-    closestNode = None
-    closestDistance = None
+    # First get rid of the existing nodes
+    reset(None)
 
-    for node in nodes:
-        distance = node.location.distanceTo(clickPoint)
-        if closestDistance is None or distance < closestDistance:
-            closestNode = node
-            closestDistance = distance
+    # Generate all of the nodes at random positions
+    numberOfNodes = random.randint(40, 60)
+    for i in range(0, numberOfNodes):
+        xCoord = int(WINDOW_WIDTH * ((random.random() * 0.5) + 0.25))
+        yCoord = int(WINDOW_HEIGHT * ((random.random() * 0.5) + 0.25))
+        nodeLocation = Point(xCoord, yCoord)
+        clampPointToBounds(nodeLocation, WINDOW_WIDTH, WINDOW_HEIGHT, BORDER_MARGIN)
+        placeNewNode(nodeLocation)
 
-    if closestDistance is not None and closestDistance < CLICK_RADIUS:
-        return closestNode
-    else:
-        return None
+    # Randomly connect the nodes
+    numberOfConnectionsToMake = random.randint(numberOfNodes, int(numberOfNodes * 1.5))
+    while numberOfConnectionsToMake > 0:
+        try:
+            randomNode = random.choice(nodes)
+            otherNode = random.choice(nodes)
+
+            randomNode.connectTo(otherNode)
+            otherNode.connectTo(randomNode)
+
+            numberOfConnectionsToMake = numberOfConnectionsToMake - 1
+        except NodeError:
+            pass
+
+    # Remove nodes without any connections
+    nodes = [node for node in nodes if len(node.connections) > 0]
 
 # Clearing the screen, quitting, pausing
 
@@ -281,6 +313,7 @@ def quit(event):
 
 master.bind("<Button-1>", mouseClicked)
 master.bind("<Motion>", mouseMoved)
+master.bind("g", autogenerateNetwork)
 master.bind("z", togglePause)
 master.bind("s", manualUpdate)
 master.bind("c", toggleConnecting)

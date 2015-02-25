@@ -19,6 +19,9 @@ class Node:
         self.isPendingAction = False
 
     def addPacketToBuffer(self, packet, sourceNode):
+        # If this is the first time the node has seen the packet, this ensures that
+        # the original sender's connection is at the front of the list of connections
+        # that have already been tried, so it can be sent back if needed
         if packet not in self.connectionsTriedForPackets:
             connectionsTriedForPacket = []
             self.connectionsTriedForPackets[packet] = connectionsTriedForPacket
@@ -79,7 +82,10 @@ class Node:
                     break
 
             if not couldSend:
-                unsendablePackets.append(packet)
+                if len(connectionsTriedForPacket) > 0:
+                    connectionsTriedForPacket[0].sendPacket(packet) # Index 0 will always be the original sender of the packet to this node
+                else:
+                    unsendablePackets.append(packet)
 
         self.packetBuffer = unsendablePackets
 
