@@ -18,7 +18,19 @@ class Node:
         self.connectionsTriedForPackets = {}
         self.isPendingAction = False
 
-    def addPacketToBuffer(self, packet):
+    def addPacketToBuffer(self, packet, sourceNode):
+        if packet not in self.connectionsTriedForPackets:
+            connectionsTriedForPacket = []
+            self.connectionsTriedForPackets[packet] = connectionsTriedForPacket
+        else:
+            connectionsTriedForPacket = self.connectionsTriedForPackets[packet]
+
+        connectionPacketCameFrom = None
+        for connection in self.connections:
+            if connection.destNode is sourceNode:
+                connectionPacketCameFrom = connection
+
+        connectionsTriedForPacket.append(connectionPacketCameFrom)
         self.packetBuffer.append(packet)
 
     def setPendingAction(self):
@@ -56,12 +68,7 @@ class Node:
                 continue
 
             sortedConnectionsForPacket = sorted(self.connections, key=lambda connection: connection.destNode.distanceTo(packet.destNode))
-
-            if packet not in self.connectionsTriedForPackets:
-                connectionsTriedForPacket = []
-                self.connectionsTriedForPackets[packet] = connectionsTriedForPacket
-            else:
-                connectionsTriedForPacket = self.connectionsTriedForPackets[packet]
+            connectionsTriedForPacket = self.connectionsTriedForPackets[packet]
 
             couldSend = False
             for connection in sortedConnectionsForPacket:
@@ -113,7 +120,7 @@ class Connection:
 
     def update(self):
         while len(self.packetsToSend) > 0:
-            self.destNode.addPacketToBuffer(self.packetsToSend.pop())
+            self.destNode.addPacketToBuffer(self.packetsToSend.pop(), self.sourceNode)
 
     def draw(self, canvas):
         canvas.create_line(self.sourceNode.location.x, self.sourceNode.location.y,

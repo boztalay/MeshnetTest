@@ -11,6 +11,7 @@ WINDOW_HEIGHT = 600
 BORDER_MARGIN = 5
 
 TARGET_FRAME_TIME = 20
+TARGET_UPDATE_INTERVAL = 500
 
 CLICK_RADIUS = 9
 
@@ -32,6 +33,7 @@ nodes = []
 nodeBeingMoved = None
 newConnectionSourceNode = None
 newPacketSourceNode = None
+paused = False
 
 # Set up the window and put a canvas in it
 
@@ -42,18 +44,12 @@ canvas.pack()
 
 # Updating the nodes and drawing each frame
 
-def updateAndDrawAll():
+def drawAll():
     global canvas
     global nodes
     global timeMgr
 
     timeMgr.startFrameTimer()
-
-    # Update
-    #timeMgr.startTimer("update")
-    #for node in nodes:
-        #node.update()
-    #timeMgr.stopTimer("update")
 
     # Draw
     timeMgr.startTimer("draw")
@@ -70,25 +66,47 @@ def updateAndDrawAll():
 
     # Continue the loop by starting another timer
     millisToNextFrame = timeMgr.stopFrameTimer()
-    master.after(millisToNextFrame, updateAndDrawAll)
+    master.after(millisToNextFrame, drawAll)
 
 def drawInfo(canvas):
     global state
     global timeMgr
+    global paused
 
     timeMgr.draw(canvas)
-
-    # Draw the current state
     canvas.create_text(WINDOW_WIDTH - BORDER_MARGIN, 2, text=state, anchor=NE, fill="white")
 
-# Updating manually
+    if paused:
+        pausedText = "Paused"
+    else:
+        pausedText = "Running"
+    canvas.create_text(WINDOW_WIDTH - BORDER_MARGIN, 15, text=pausedText, anchor=NE, fill="white")
 
-def manualUpdate(event):
+def updateAll():
+    global nodes
+    global paused
+
+    timeMgr.startTimer("update")
+    if not paused:
+        updateNodesAndConnections()
+    timeMgr.stopTimer("update")
+
+    master.after(TARGET_UPDATE_INTERVAL, updateAll)
+
+def updateNodesAndConnections():
+    global nodes
+
     for node in nodes:
         node.update()
 
     for node in nodes:
         node.updateConnections()
+
+def manualUpdate(event):
+    global paused
+
+    if paused:
+        updateNodesAndConnections()
 
 # Handling mouse input
 
@@ -166,6 +184,7 @@ def toggleConnecting(event):
         state = STATE_IDLE
     elif state is STATE_CONNECTING_FINISH:
         state = STATE_IDLE
+        newConnectionSourceNode.clearPendingAction()
         newConnectionSourceNode = None
 
 def startConnection(sourceNode):
@@ -201,6 +220,7 @@ def togglePacketRouting(event):
         state = STATE_IDLE
     elif state is STATE_PACKET_FINISH:
         state = STATE_IDLE
+        newConnectionSourceNode.clearPendingAction()
         newConnectionSourceNode = None
 
 def startPacket(sourceNode):
@@ -216,7 +236,7 @@ def finishPacket(destNode):
     global newPacketSourceNode
 
     packet = Packet(newPacketSourceNode, destNode, "Hello, world!")
-    newPacketSourceNode.addPacketToBuffer(packet)
+    newPacketSourceNode.addPacketToBuffer(packet, None)
     newPacketSourceNode.clearPendingAction()
 
     newConnectionSourceNode = None
@@ -241,13 +261,18 @@ def getNearbyNode(clickPoint):
     else:
         return None
 
-# Clearing the screen and quitting
+# Clearing the screen, quitting, pausing
 
 def reset(event):
     global nodes
 
     if state is STATE_IDLE:
         del(nodes[:])
+
+def togglePause(event):
+    global paused
+
+    paused = not paused
 
 def quit(event):
     master.quit()
@@ -256,6 +281,7 @@ def quit(event):
 
 master.bind("<Button-1>", mouseClicked)
 master.bind("<Motion>", mouseMoved)
+master.bind("z", togglePause)
 master.bind("s", manualUpdate)
 master.bind("c", toggleConnecting)
 master.bind("p", togglePacketRouting)
@@ -264,5 +290,6 @@ master.bind("q", quit)
 
 # Start rendering things
 
-updateAndDrawAll()
+drawAll()
+updateAll()
 mainloop()
