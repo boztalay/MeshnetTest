@@ -110,7 +110,7 @@ class Node:
                                     self.location.x + (NODE_RADIUS - 2), self.location.y + (NODE_RADIUS - 2), fill=innerColor)
 
     def receivePacket(self, packet):
-        pass
+        print "Got a packet!"
 
     def distanceTo(self, otherNode):
         return self.location.distanceTo(otherNode.location)
