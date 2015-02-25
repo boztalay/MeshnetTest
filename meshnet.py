@@ -58,6 +58,9 @@ def drawAll():
     canvas.create_rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, fill="black")
 
     for node in nodes:
+        for connection in node.connections:
+            connection.draw(canvas)
+    for node in nodes:
         node.draw(canvas)
 
     drawInfo(canvas)

@@ -15,25 +15,44 @@ class Node:
         self.location = location
         self.connections = []
         self.packetBuffer = []
-        self.connectionsTriedForPackets = {}
+        self.connectionsTriedForDests = {}
+        self.connectionsFailedForDests = {}
         self.isPendingAction = False
 
     def addPacketToBuffer(self, packet, sourceNode):
-        # If this is the first time the node has seen the packet, this ensures that
-        # the original sender's connection is at the front of the list of connections
-        # that have already been tried, so it can be sent back if needed
-        if packet not in self.connectionsTriedForPackets:
-            connectionsTriedForPacket = []
-            self.connectionsTriedForPackets[packet] = connectionsTriedForPacket
+        # If this is the first time this node has gotten a packet for this destination,
+        # this will ensure that the connection to the node that first send this node
+        # a packet with this destination will be at the front of the list of connections
+        # to try for it. This makes sure that 1) the packet isn't just sent back to that node
+        # and 2) we can default to sending the packet back to it if all other connections
+        # have been tried. If the packet is marked as hitting a dead end, we add that
+        # connection to a list of failed connections for that destination.
+
+        if packet.destNode not in self.connectionsTriedForDests:
+            connectionsTriedForDest = []
+            self.connectionsTriedForDests[packet.destNode] = connectionsTriedForDest
         else:
-            connectionsTriedForPacket = self.connectionsTriedForPackets[packet]
+            connectionsTriedForDest = self.connectionsTriedForDests[packet.destNode]
+
+        if packet.destNode not in self.connectionsFailedForDests:
+            connectionsFailedForDest = []
+            self.connectionsFailedForDests[packet.destNode] = connectionsFailedForDest
+        else:
+            connectionsFailedForDest = self.connectionsFailedForDests[packet.destNode]
 
         connectionPacketCameFrom = None
         for connection in self.connections:
             if connection.destNode is sourceNode:
                 connectionPacketCameFrom = connection
 
-        connectionsTriedForPacket.append(connectionPacketCameFrom)
+        if connectionPacketCameFrom is not None:
+            if connectionPacketCameFrom not in connectionsTriedForDest:
+                connectionsTriedForDest.append(connectionPacketCameFrom)
+            if packet.foundDeadEnd:
+                packet.foundDeadEnd = False
+                if connectionPacketCameFrom not in connectionsFailedForDest:
+                    connectionsFailedForDest.append(connectionPacketCameFrom)
+
         self.packetBuffer.append(packet)
 
     def setPendingAction(self):
@@ -70,21 +89,26 @@ class Node:
                 self.receivePacket(packet)
                 continue
 
-            sortedConnectionsForPacket = sorted(self.connections, key=lambda connection: connection.destNode.distanceTo(packet.destNode))
-            connectionsTriedForPacket = self.connectionsTriedForPackets[packet]
+            sortedConnectionsForDest = sorted(self.connections, key=lambda connection: connection.destNode.distanceTo(packet.destNode))
+            connectionsTriedForDest = self.connectionsTriedForDests[packet.destNode]
+            connectionsFailedForDest = self.connectionsFailedForDests[packet.destNode]
 
             couldSend = False
-            for connection in sortedConnectionsForPacket:
-                if connection not in connectionsTriedForPacket:
-                    connection.sendPacket(packet)
-                    connectionsTriedForPacket.append(connection)
-                    couldSend = True
-                    break
+            for connection in sortedConnectionsForDest:
+                if connection not in connectionsFailedForDest:
+                    if len(connectionsTriedForDest) == 0 or (len(connectionsTriedForDest) > 0 and connection is not connectionsTriedForDest[0]):
+                        connection.sendPacket(packet)
+                        connectionsTriedForDest.append(connection)
+                        couldSend = True
+                        break
 
             if not couldSend:
-                if len(connectionsTriedForPacket) > 0:
-                    connectionsTriedForPacket[0].sendPacket(packet) # Index 0 will always be the original sender of the packet to this node
-                else:
+                if len(connectionsTriedForDest) > 0:
+                    # No connections left to try, send it back to the node we got it from
+                    # Index 0 will always be the first node that sent a packet with this destination
+                    packet.foundDeadEnd = True
+                    connectionsTriedForDest[0].sendPacket(packet)
+                elif packet not in unsendablePackets:
                     unsendablePackets.append(packet)
 
         self.packetBuffer = unsendablePackets
@@ -94,9 +118,6 @@ class Node:
             connection.update()
 
     def draw(self, canvas):
-        for connection in self.connections:
-            connection.draw(canvas)
-
         nodeColor = NODE_COLOR
         if self.isPendingAction:
             nodeColor = NODE_PENDING_COLOR
@@ -136,6 +157,7 @@ class Packet:
     def __init__(self, sourceNode, destNode, message):
         self.sourceNode = sourceNode
         self.destNode = destNode
+        self.foundDeadEnd = False
         self.message = message
         self.color = None
 
