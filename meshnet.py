@@ -50,10 +50,10 @@ def updateAndDrawAll():
     timeMgr.startFrameTimer()
 
     # Update
-    timeMgr.startTimer("update")
-    for node in nodes:
-        node.update()
-    timeMgr.stopTimer("update")
+    #timeMgr.startTimer("update")
+    #for node in nodes:
+        #node.update()
+    #timeMgr.stopTimer("update")
 
     # Draw
     timeMgr.startTimer("draw")
@@ -80,6 +80,15 @@ def drawInfo(canvas):
 
     # Draw the current state
     canvas.create_text(WINDOW_WIDTH - BORDER_MARGIN, 2, text=state, anchor=NE, fill="white")
+
+# Updating manually
+
+def manualUpdate(event):
+    for node in nodes:
+        node.update()
+
+    for node in nodes:
+        node.updateConnections()
 
 # Handling mouse input
 
@@ -247,6 +256,7 @@ def quit(event):
 
 master.bind("<Button-1>", mouseClicked)
 master.bind("<Motion>", mouseMoved)
+master.bind("s", manualUpdate)
 master.bind("c", toggleConnecting)
 master.bind("p", togglePacketRouting)
 master.bind("r", reset)
