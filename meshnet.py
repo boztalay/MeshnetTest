@@ -12,6 +12,7 @@ WINDOW_HEIGHT = 600
 BORDER_MARGIN = 5
 
 TARGET_UPDATE_INTERVAL = 500
+PACKET_GENERATION_INTERVAL = 500
 
 CLICK_RADIUS = 9
 
@@ -34,6 +35,7 @@ nodeBeingMoved = None
 newConnectionSourceNode = None
 newPacketSourceNode = None
 paused = False
+generatePackets = False
 
 # Set up the window and put a canvas in it
 
@@ -85,14 +87,20 @@ def drawInfo(canvas):
         pausedText = "Running"
     canvas.create_text(WINDOW_WIDTH - BORDER_MARGIN, 15, text=pausedText, anchor=NE, fill="white")
 
+    if generatePackets:
+        generatingText = "Making Packets"
+    else:
+        generatingText = "Not Making Packets"
+    canvas.create_text(WINDOW_WIDTH - BORDER_MARGIN, 28, text=generatingText, anchor=NE, fill="white")
+
 def updateAll():
     global nodes
     global paused
 
-    timeMgr.startTimer("update")
     if not paused:
+        timeMgr.startTimer("update")
         updateNodesAndConnections()
-    timeMgr.stopTimer("update")
+        timeMgr.stopTimer("update")
 
     master.after(TARGET_UPDATE_INTERVAL, updateAll)
 
@@ -110,6 +118,34 @@ def manualUpdate(event):
 
     if paused:
         updateNodesAndConnections()
+
+# Making random packets to send around the network
+
+def toggleGeneratePackets(event):
+    global generatePackets
+
+    generatePackets = not generatePackets
+    if generatePackets:
+        generatePacket()
+
+def generatePacket():
+    global nodes
+    global state
+    global paused
+    global generatePackets
+
+    if generatePackets:
+        if len(nodes) > 2 and state is STATE_IDLE and not paused:
+            sourceNode = random.choice(nodes)
+            destNode = random.choice(nodes)
+
+            while destNode is sourceNode:
+                destNode = random.choice(nodes)
+
+            packet = Packet(sourceNode, destNode, "Hello, world!")
+            sourceNode.addPacketToBuffer(packet, None)
+
+        master.after(PACKET_GENERATION_INTERVAL, generatePacket)
 
 # Handling mouse input
 
@@ -271,7 +307,7 @@ def autogenerateNetwork(event):
     reset(None)
 
     # Generate all of the nodes at random positions
-    numberOfNodes = random.randint(40, 60)
+    numberOfNodes = random.randint(50, 75)
     for i in range(0, numberOfNodes):
         xCoord = int(WINDOW_WIDTH * ((random.random() * 0.5) + 0.25))
         yCoord = int(WINDOW_HEIGHT * ((random.random() * 0.5) + 0.25))
@@ -279,17 +315,18 @@ def autogenerateNetwork(event):
         clampPointToBounds(nodeLocation, WINDOW_WIDTH, WINDOW_HEIGHT, BORDER_MARGIN)
         placeNewNode(nodeLocation)
 
-    # Randomly connect the nodes
-    numberOfConnectionsToMake = random.randint(numberOfNodes, int(numberOfNodes * 1.5))
+    # Randomly connect nodes to other nodes nearby
+    numberOfConnectionsToMake = random.randint(int(numberOfNodes * 0.9), int(numberOfNodes * 1.3))
+    maxNodeDistance = 90
     while numberOfConnectionsToMake > 0:
         try:
             randomNode = random.choice(nodes)
             otherNode = random.choice(nodes)
 
-            randomNode.connectTo(otherNode)
-            otherNode.connectTo(randomNode)
-
-            numberOfConnectionsToMake = numberOfConnectionsToMake - 1
+            if randomNode.distanceTo(otherNode) < maxNodeDistance:
+                randomNode.connectTo(otherNode)
+                otherNode.connectTo(randomNode)
+                numberOfConnectionsToMake = numberOfConnectionsToMake - 1
         except NodeError:
             pass
 
@@ -317,6 +354,7 @@ def quit(event):
 master.bind("<Button-1>", mouseClicked)
 master.bind("<Motion>", mouseMoved)
 master.bind("g", autogenerateNetwork)
+master.bind("x", toggleGeneratePackets)
 master.bind("z", togglePause)
 master.bind("s", manualUpdate)
 master.bind("c", toggleConnecting)
