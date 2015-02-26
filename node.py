@@ -6,6 +6,7 @@ NODE_RADIUS = 5
 NODE_COLOR = "green"
 NODE_PENDING_COLOR = "purple"
 CONNECTION_COLOR = "yellow"
+PACKETS_SENT_MAX = 100
 
 class NodeError(Exception):
     pass
@@ -15,6 +16,7 @@ class Node:
         self.location = location
         self.connections = []
         self.packetBuffer = []
+        self.packetsSent = []
         self.connectionsTriedForDests = {}
         self.connectionsFailedForDests = {}
         self.isPendingAction = False
@@ -93,19 +95,34 @@ class Node:
             connectionsTriedForDest = self.connectionsTriedForDests[packet.destNode]
             connectionsFailedForDest = self.connectionsFailedForDests[packet.destNode]
 
+            connectionsToIgnore = []
+            if len(connectionsTriedForDest) > 0:
+                connectionsToIgnore.append(connectionsTriedForDest[0])
+
+                if packet in self.packetsSent:
+                    # This means this node got a packet that it's already sent out,
+                    # so there's probably a cycle in the connection it tried last.
+                    # This will remove that connection from consideration (the last one tried)
+                    connectionsToIgnore.append(connectionsTriedForDest[-1])
+
             couldSend = False
             for connection in sortedConnectionsForDest:
-                if connection not in connectionsFailedForDest:
-                    if len(connectionsTriedForDest) == 0 or (len(connectionsTriedForDest) > 0 and connection is not connectionsTriedForDest[0]):
-                        connection.sendPacket(packet)
-                        connectionsTriedForDest.append(connection)
-                        couldSend = True
-                        break
+                if connection not in connectionsFailedForDest and connection not in connectionsToIgnore:
+                    connection.sendPacket(packet)
+                    connectionsTriedForDest.append(connection)
+                    couldSend = True
+
+                    self.packetsSent.append(packet)
+                    if len(self.packetsSent) > PACKETS_SENT_MAX:
+                        self.packetsSent.pop(0)
+
+                    break
 
             if not couldSend:
                 if len(connectionsTriedForDest) > 0:
                     # No connections left to try, send it back to the node we got it from
                     # Index 0 will always be the first node that sent a packet with this destination
+                    # Don't add the packet to the packets sent list, we aren't sending it on
                     packet.foundDeadEnd = True
                     connectionsTriedForDest[0].sendPacket(packet)
                 elif packet not in unsendablePackets:
